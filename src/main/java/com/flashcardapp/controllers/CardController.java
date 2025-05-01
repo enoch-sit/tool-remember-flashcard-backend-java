@@ -1,0 +1,179 @@
+package com.flashcardapp.controllers;
+
+import com.flashcardapp.models.Card;
+import com.flashcardapp.models.Deck;
+import com.flashcardapp.models.User;
+import com.flashcardapp.payload.response.MessageResponse;
+import com.flashcardapp.repositories.CardRepository;
+import com.flashcardapp.repositories.DeckRepository;
+import com.flashcardapp.repositories.UserRepository;
+import com.flashcardapp.security.services.UserDetailsImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import javax.validation.Valid;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@CrossOrigin(origins = "*", maxAge = 3600)
+@RestController
+@RequestMapping("/api")
+public class CardController {
+
+    @Autowired
+    private CardRepository cardRepository;
+
+    @Autowired
+    private DeckRepository deckRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @GetMapping("/decks/{deckId}/cards")
+    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+    public ResponseEntity<?> getAllCardsByDeck(
+            @PathVariable Long deckId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id,asc") String[] sort) {
+
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+
+        String sortField = sort[0];
+        String sortDirection = sort.length > 1 ? sort[1] : "asc";
+        Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Sort sortBy = Sort.by(direction, sortField);
+        Pageable pageable = PageRequest.of(page, size, sortBy);
+
+        Page<Card> cards = cardRepository.findByDeck(deck, pageable);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("cards", cards.getContent());
+        response.put("currentPage", cards.getNumber());
+        response.put("totalItems", cards.getTotalElements());
+        response.put("totalPages", cards.getTotalPages());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/decks/{deckId}/cards/{id}")
+    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+    public ResponseEntity<?> getCardById(@PathVariable Long deckId, @PathVariable Long id) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        deckRepository.findByIdAndUser(deckId, user)
+                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+
+        Card card = cardRepository.findByIdAndDeckId(id, deckId)
+                .orElseThrow(() -> new RuntimeException("Card not found"));
+
+        return ResponseEntity.ok(card);
+    }
+
+    @GetMapping("/decks/{deckId}/review-cards")
+    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+    public ResponseEntity<?> getCardsForReview(
+            @PathVariable Long deckId,
+            @RequestParam(defaultValue = "10") int limit) {
+
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Pageable pageable = PageRequest.of(0, limit);
+        List<Card> cards = cardRepository.findCardsForReview(deck, now, pageable);
+        Long totalCards = cardRepository.countCardsForReview(deck, now);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("cards", cards);
+        response.put("totalDue", totalCards);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/decks/{deckId}/cards")
+    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+    public ResponseEntity<?> createCard(@PathVariable Long deckId, @Valid @RequestBody Card card) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+
+        card.setDeck(deck);
+        Card savedCard = cardRepository.save(card);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedCard);
+    }
+
+    @PutMapping("/decks/{deckId}/cards/{id}")
+    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+    public ResponseEntity<?> updateCard(@PathVariable Long deckId, @PathVariable Long id,
+            @Valid @RequestBody Card cardDetails) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        deckRepository.findByIdAndUser(deckId, user)
+                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+
+        Card card = cardRepository.findByIdAndDeckId(id, deckId)
+                .orElseThrow(() -> new RuntimeException("Card not found"));
+
+        card.setFront(cardDetails.getFront());
+        card.setBack(cardDetails.getBack());
+        card.setNotes(cardDetails.getNotes());
+        card.setUpdatedAt(LocalDateTime.now());
+
+        Card updatedCard = cardRepository.save(card);
+
+        return ResponseEntity.ok(updatedCard);
+    }
+
+    @DeleteMapping("/decks/{deckId}/cards/{id}")
+    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+    public ResponseEntity<?> deleteCard(@PathVariable Long deckId, @PathVariable Long id) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        deckRepository.findByIdAndUser(deckId, user)
+                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+
+        Card card = cardRepository.findByIdAndDeckId(id, deckId)
+                .orElseThrow(() -> new RuntimeException("Card not found"));
+
+        cardRepository.delete(card);
+
+        return ResponseEntity.ok(new MessageResponse("Card deleted successfully"));
+    }
+}

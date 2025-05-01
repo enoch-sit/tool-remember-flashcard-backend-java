@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Maven
+target/*
+!target/*.jar
+*.war
+*.ear
+*.class
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# Logs
+log/
+logs/
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+CHANGELOG.md
+Blueprint/
+learn/
+Progress/

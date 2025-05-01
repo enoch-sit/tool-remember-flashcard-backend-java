@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:3000"  # Map to the server.port in application.properties
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/flashcard_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=true
+      # Add a properly Base64 encoded JWT secret for Docker
+      - JWT_SECRET=VGhpcyBpcyBhIHNlY3VyZSBKV1Qgc2VjcmV0IGtleSBmb3IgZG9ja2VyIGVudmlyb25tZW50
+      # Email configuration for MailHog
+      - SPRING_MAIL_HOST=mailhog
+      - SPRING_MAIL_PORT=1025
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=false
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=false
+    depends_on:
+      - db
+      - mailhog
+    networks:
+      - flashcard-network
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=flashcard_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - flashcard-network
+      
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
+    networks:
+      - flashcard-network
+
+networks:
+  flashcard-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
