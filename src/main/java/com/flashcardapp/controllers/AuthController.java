@@ -17,6 +17,9 @@ import com.flashcardapp.repositories.RoleRepository;
 import com.flashcardapp.repositories.UserRepository;
 import com.flashcardapp.security.jwt.JwtUtils;
 import com.flashcardapp.security.services.UserDetailsImpl;
+import com.flashcardapp.services.EmailService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +44,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+
     @Autowired
     AuthenticationManager authenticationManager;
 
@@ -55,6 +60,9 @@ public class AuthController {
 
     @Autowired
     JwtUtils jwtUtils;
+
+    @Autowired
+    EmailService emailService;
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
@@ -112,7 +120,14 @@ public class AuthController {
         user.setRoles(roles);
         User savedUser = userRepository.save(user);
 
-        // TODO: Send verification email
+        // Send verification email
+        try {
+            emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getVerificationToken());
+            logger.info("Verification email sent to: {}", savedUser.getEmail());
+        } catch (Exception e) {
+            logger.error("Failed to send verification email: {}", e.getMessage());
+            // Continue execution even if email sending fails
+        }
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "User registered successfully. Verification email has been sent.");
@@ -211,7 +226,14 @@ public class AuthController {
             user.setVerificationTokenExpiry(LocalDateTime.now().plusDays(1));
             userRepository.save(user);
 
-            // TODO: Send new verification email
+            // Send new verification email
+            try {
+                emailService.sendVerificationEmail(user.getEmail(), user.getVerificationToken());
+                logger.info("Verification email resent to: {}", user.getEmail());
+            } catch (Exception e) {
+                logger.error("Failed to resend verification email: {}", e.getMessage());
+                // Continue execution even if email sending fails
+            }
 
             return ResponseEntity.ok(new MessageResponse("Verification code resent"));
         } catch (Exception e) {
@@ -294,10 +316,18 @@ public class AuthController {
                     user.setResetPasswordTokenExpiry(LocalDateTime.now().plusHours(24));
                     userRepository.save(user);
 
-                    // TODO: Send password reset email
+                    // Send password reset email
+                    try {
+                        emailService.sendPasswordResetEmail(user.getEmail(), user.getResetPasswordToken());
+                        logger.info("Password reset email sent to: {}", user.getEmail());
+                    } catch (Exception e) {
+                        logger.error("Failed to send password reset email: {}", e.getMessage());
+                        // Continue execution even if email sending fails
+                    }
                 });
             } catch (Exception e) {
                 // Log the error but don't expose it to the user
+                logger.error("Error in forgot password flow: {}", e.getMessage());
             }
         }
 

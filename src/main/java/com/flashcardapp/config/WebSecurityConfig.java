@@ -61,6 +61,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .authorizeRequests()
                 .antMatchers("/api/auth/**").permitAll()
                 .antMatchers("/api/public/**").permitAll()
+                .antMatchers("/api/test/**").permitAll() // Allow access to test endpoints
                 .antMatchers("/h2-console/**").permitAll()
                 .antMatchers("/health").permitAll()
                 .anyRequest().authenticated();
