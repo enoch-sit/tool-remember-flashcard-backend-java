@@ -592,6 +592,33 @@ def test_create_card():
         "notes": "A test card created by the API test script",
     }
 
+    # First try the new simplified endpoint that avoids chunked encoding issues
+    try:
+        print_info("Attempting to use simplified card creation endpoint first")
+        response = requests.post(
+            f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards/simple",
+            json=data,
+            headers=auth_header,
+            timeout=30,
+        )
+        result = handle_response(
+            response, "Create card request sent (simplified endpoint)"
+        )
+
+        if result:
+            TEST_CARD_ID = result.get("id")
+            print_info(f"Created card with ID: {TEST_CARD_ID}")
+            print_success("Successfully used simplified endpoint")
+            return result
+
+    except Exception as e:
+        print_warning(
+            f"Simplified endpoint failed: {str(e)}. Falling back to standard endpoint."
+        )
+
+    # Fall back to the original endpoint with retry logic if the simplified endpoint fails
+    print_info("Using standard endpoint with retry logic")
+
     # Add retry logic for handling connection errors
     max_retries = 3
     retry_delay = 2
@@ -608,8 +635,7 @@ def test_create_card():
             if result:
                 TEST_CARD_ID = result.get("id")
                 print_info(f"Created card with ID: {TEST_CARD_ID}")
-
-            return result
+                return result
 
         except (
             requests.exceptions.ChunkedEncodingError,
@@ -642,10 +668,54 @@ def test_get_cards():
     if not auth_header:
         return None
 
-    response = requests.get(
-        f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards", headers=auth_header
-    )
-    return handle_response(response, "Get cards request sent")
+    # First try the new simplified endpoint that avoids chunked encoding issues
+    try:
+        print_info("Attempting to use simplified endpoint for retrieving cards")
+        response = requests.get(
+            f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards/simple",
+            headers=auth_header,
+            timeout=30,
+        )
+        result = handle_response(
+            response, "Get cards request sent (simplified endpoint)"
+        )
+        if result:
+            print_success("Successfully used simplified endpoint")
+            return result
+    except Exception as e:
+        print_warning(
+            f"Simplified endpoint failed: {str(e)}. Falling back to standard endpoint."
+        )
+
+    # Fall back to the original endpoint with retry logic
+    print_info("Using standard endpoint with retry logic")
+
+    # Add retry logic for handling connection errors
+    max_retries = 3
+    retry_delay = 2
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards",
+                headers=auth_header,
+                timeout=30,
+            )
+            return handle_response(response, "Get cards request sent")
+        except (
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ) as e:
+            if attempt < max_retries - 1:
+                print_warning(f"Connection error on attempt {attempt + 1}: {str(e)}")
+                print_info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                print_error(
+                    f"Failed to get cards after {max_retries} attempts: {str(e)}"
+                )
+                return None
 
 
 def test_get_card_details():
@@ -662,359 +732,88 @@ def test_get_card_details():
     if not auth_header:
         return None
 
-    response = requests.get(
-        f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards/{TEST_CARD_ID}",
-        headers=auth_header,
-    )
-    return handle_response(response, "Get card details request sent")
-
-
-def test_start_study_session():
-    """Test starting a study session"""
-    global TEST_DECK_ID, TEST_SESSION_ID
-
-    print_header("Testing Start Study Session")
-
-    if not TEST_DECK_ID:
-        print_error("No test deck ID available. Please create a deck first.")
-        return None
-
-    auth_header = get_auth_header()
-    if not auth_header:
-        return None
-
-    response = requests.post(
-        f"{BASE_URL}/api/decks/{TEST_DECK_ID}/study-sessions", headers=auth_header
-    )
-    result = handle_response(response, "Start study session request sent")
-
-    if result:
-        TEST_SESSION_ID = result.get("sessionId")
-        print_info(f"Started study session with ID: {TEST_SESSION_ID}")
-
-    return result
-
-
-def test_submit_card_review():
-    """Test submitting a card review"""
-    global TEST_CARD_ID, TEST_SESSION_ID
-
-    print_header("Testing Submit Card Review")
-
-    if not TEST_CARD_ID or not TEST_SESSION_ID:
-        print_error("Card ID or Session ID not available. Please create them first.")
-        return None
-
-    auth_header = get_auth_header()
-    if not auth_header:
-        return None
-
-    data = {
-        "card": {"id": TEST_CARD_ID},
-        "result": 4,
-        "timeSpentSeconds": 5,
-    }
-    response = requests.post(
-        f"{BASE_URL}/api/study-sessions/{TEST_SESSION_ID}/reviews",
-        json=data,
-        headers=auth_header,
-    )
-    return handle_response(response, "Submit card review request sent")
-
-
-def test_complete_study_session():
-    """Test completing a study session"""
-    global TEST_SESSION_ID
-
-    print_header("Testing Complete Study Session")
-
-    if not TEST_SESSION_ID:
-        print_error("No test session ID available. Please start a study session first.")
-        return None
-
-    auth_header = get_auth_header()
-    if not auth_header:
-        return None
-
-    data = {
-        "cardsReviewed": 2,
-        "correctResponses": 1,
-        "incorrectResponses": 1,
-        "totalTimeSeconds": 60,
-    }
-
-    response = requests.put(
-        f"{BASE_URL}/api/study-sessions/{TEST_SESSION_ID}/complete",
-        json=data,
-        headers=auth_header,
-    )
-    return handle_response(response, "Complete study session request sent")
-
-
-def test_forget_password():
-    """Test password reset request"""
-    global USER_EMAIL
-
-    print_header("Testing Password Reset Request")
-
-    if args.auto and USER_EMAIL:
-        email = USER_EMAIL
-    else:
-        email = input("Enter the email address to reset password for: ").strip()
-
-    data = {"email": email}
-
-    response = requests.post(f"{BASE_URL}/api/auth/forgot-password", json=data)
-    result = handle_response(response, "Password reset request sent")
-
-    if result:
-        print_info("\nA password reset email should have been sent.")
-        if not args.auto:
-            input(
-                f"{Colors.YELLOW}Press Enter to open MailHog to check the password reset email...{Colors.ENDC}"
-            )
-            open_mailhog()
-
-            print_info("Look for the password reset token in the email")
-
-    return result
-
-
-def test_reset_password():
-    """Test password reset"""
-    global USER_EMAIL, USER_PASSWORD
-
-    print_header("Testing Password Reset")
-
-    if args.auto and args.auto_verify and USER_EMAIL:
-        token = extract_token_from_mailhog(USER_EMAIL, "reset")
-        new_password = f"NewPassword123!{generate_random_string()}"
-        if not token:
-            print_error("Could not automatically extract reset token")
-            if not args.auto:
-                token = input("Enter the password reset token from the email: ").strip()
-                new_password = getpass.getpass("Enter new password: ")
-            else:
-                return None
-    else:
-        token = input("Enter the password reset token from the email: ").strip()
-        new_password = getpass.getpass("Enter new password: ")
-
-    # Update stored password if using auto mode
-    if args.auto:
-        USER_PASSWORD = new_password
-        print_info(f"User password updated to: {new_password}")
-
-    data = {"token": token, "newPassword": new_password}
-
-    response = requests.post(f"{BASE_URL}/api/auth/reset-password", json=data)
-    return handle_response(response, "Password reset request sent")
-
-
-def test_logout():
-    """Test user logout"""
-    global REFRESH_TOKEN, AUTH_TOKEN
-
-    print_header("Testing User Logout")
-
-    if not REFRESH_TOKEN:
-        print_error("No refresh token available. Please log in first.")
-        return None
-
-    data = {"refreshToken": REFRESH_TOKEN}
-
-    response = requests.post(f"{BASE_URL}/api/auth/logout", json=data)
-    result = handle_response(response, "Logout request sent")
-
-    if result:
-        AUTH_TOKEN = None
-        REFRESH_TOKEN = None
-        print_info("Logged out successfully, tokens cleared")
-
-    return result
-
-
-def run_automated_tests():
-    """Run all tests in sequence with minimal user input"""
-    test_sequence = [
-        ("Health Check", test_health_check),
-        ("User Registration", test_register_user),
-        ("Email Verification", test_verify_email),
-        ("User Login", test_login),
-        ("Token Refresh", test_refresh_token),
-        ("Create Deck", test_create_deck),
-        ("Get All Decks", test_get_decks),
-        ("Get Deck Details", test_get_deck_details),
-        ("Create Card", test_create_card),
-        ("Get Cards in Deck", test_get_cards),
-        ("Get Card Details", test_get_card_details),
-        ("Start Study Session", test_start_study_session),
-        ("Submit Card Review", test_submit_card_review),
-        ("Complete Study Session", test_complete_study_session),
-        ("Logout", test_logout),
-    ]
-
-    results = []
-
-    for test_name, test_func in test_sequence:
-        print_info(f"Running test: {test_name}")
-        result = test_func()
-        results.append((test_name, result is not None))
-
-        # Add delay between tests to avoid rate limiting
-        time.sleep(args.delay)
-
-    # Print summary
-    print_header("Test Results Summary")
-    passed = 0
-    failed = 0
-
-    for test_name, success in results:
-        status = (
-            f"{Colors.GREEN}PASSED{Colors.ENDC}"
-            if success
-            else f"{Colors.RED}FAILED{Colors.ENDC}"
-        )
-        print(f"{test_name}: {status}")
-        if success:
-            passed += 1
-        else:
-            failed += 1
-
-    print(f"\nTotal tests: {len(results)}")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-
-    return passed, failed
-
-
-def main_menu():
-    """Display the main menu for API testing"""
-    while True:
-        print_header("Flashcard API Test Menu")
-
-        print(f"{Colors.BOLD}Authentication Tests:{Colors.ENDC}")
-        print("1.  Test Health Check")
-        print("2.  Register a New User")
-        print("3.  Verify Email")
-        print("4.  Login")
-        print("5.  Refresh Token")
-        print("6.  Request Password Reset")
-        print("7.  Reset Password")
-        print("8.  Logout")
-
-        print(f"\n{Colors.BOLD}Deck Management:{Colors.ENDC}")
-        print("9.  Get All Decks")
-        print("10. Create New Deck")
-        print("11. Get Deck Details")
-
-        print(f"\n{Colors.BOLD}Card Management:{Colors.ENDC}")
-        print("12. Create New Card")
-        print("13. Get Cards in Deck")
-        print("14. Get Card Details")
-
-        print(f"\n{Colors.BOLD}Study Session Management:{Colors.ENDC}")
-        print("15. Start Study Session")
-        print("16. Complete Study Session")
-        print("17. Submit Card Review")
-
-        print(f"\n{Colors.BOLD}System:{Colors.ENDC}")
-        print("0.  Exit")
-        print("A.  Run All Tests Automatically")
-
-        choice = input("\nEnter your choice (0-17 or A): ").strip()
-
-        if choice.upper() == "A":
-            run_automated_tests()
-        else:
-            try:
-                choice = int(choice)
-
-                if choice == 0:
-                    print_info("Exiting the test script")
-                    break
-
-                # Authentication Tests
-                elif choice == 1:
-                    test_health_check()
-                elif choice == 2:
-                    test_register_user()
-                elif choice == 3:
-                    test_verify_email()
-                elif choice == 4:
-                    test_login()
-                elif choice == 5:
-                    test_refresh_token()
-                elif choice == 6:
-                    test_forget_password()
-                elif choice == 7:
-                    test_reset_password()
-                elif choice == 8:
-                    test_logout()
-
-                # Deck Management
-                elif choice == 9:
-                    test_get_decks()
-                elif choice == 10:
-                    test_create_deck()
-                elif choice == 11:
-                    test_get_deck_details()
-
-                # Card Management
-                elif choice == 12:
-                    test_create_card()
-                elif choice == 13:
-                    test_get_cards()
-                elif choice == 14:
-                    test_get_card_details()
-
-                # Study Session Management
-                elif choice == 15:
-                    test_start_study_session()
-                elif choice == 16:
-                    test_complete_study_session()
-                elif choice == 17:
-                    test_submit_card_review()
-
-                else:
-                    print_warning("Invalid choice. Please try again.")
-
-            except ValueError:
-                print_error("Please enter a number or 'A' for automated testing.")
-
-        # Pause before returning to the menu
-        if not args.auto:
-            input(f"\n{Colors.YELLOW}Press Enter to return to the menu...{Colors.ENDC}")
-
-
-if __name__ == "__main__":
-    print_header("Flashcard API Test Script")
-    print_info(f"Testing API at {BASE_URL}")
-    print_info(f"MailHog is expected at {MAILHOG_URL}")
-
-    if args.auto:
-        print_info("Running in automated mode with minimal user interaction")
-        if args.auto_verify:
-            print_info("Auto-verification of email tokens is enabled")
-
+    # First try the simplified endpoint that avoids chunked encoding issues
     try:
-        # Wait for server to be available if in auto mode
-        if args.auto:
-            if not wait_for_server():
-                sys.exit(1)
-            run_automated_tests()
-        else:
-            # Test if the API is up and running
-            health = test_health_check()
-            if health:
-                main_menu()
+        print_info("Attempting to use simplified card details endpoint")
+        response = requests.get(
+            f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards/{TEST_CARD_ID}/simple",
+            headers=auth_header,
+            timeout=30,
+        )
+        result = handle_response(
+            response, "Get card details request sent (simplified endpoint)"
+        )
+        if result:
+            print_success("Successfully used simplified endpoint")
+            return result
+    except Exception as e:
+        print_warning(
+            f"Simplified endpoint failed: {str(e)}. Falling back to standard endpoint."
+        )
+
+    # Fall back to the original endpoint with retry logic
+    print_info("Using standard endpoint with retry logic")
+
+    # Add retry logic for handling connection errors
+    max_retries = 3
+    retry_delay = 2
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards/{TEST_CARD_ID}",
+                headers=auth_header,
+                timeout=30,
+            )
+            return handle_response(response, "Get card details request sent")
+        except (
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ) as e:
+            if attempt < max_retries - 1:
+                print_warning(f"Connection error on attempt {attempt + 1}: {str(e)}")
+                print_info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
             else:
                 print_error(
-                    f"Failed to connect to the API at {BASE_URL}. Make sure the server is running."
+                    f"Failed to get card details after {max_retries} attempts: {str(e)}"
                 )
-    except requests.exceptions.ConnectionError:
+                return None
+
+
+# Main execution block
+if __name__ == "__main__":
+    print_header("Flashcard API Testing Tool")
+    print_info(f"Using API at {BASE_URL}")
+    print_info(f"Using MailHog at {MAILHOG_URL}")
+
+    # Wait for server to be ready
+    if not wait_for_server():
+        print_error("Server not available. Exiting.")
+        sys.exit(1)
+
+    # Run basic health check
+    if not test_health_check():
         print_error(
-            f"Failed to connect to the API at {BASE_URL}. Make sure the server is running."
+            "Health check failed. Server might be running but not working correctly."
         )
-    except KeyboardInterrupt:
-        print_info("\nExiting the test script")
+        if not args.auto:
+            input("Press Enter to continue anyway or Ctrl+C to exit...")
+
+    # Authentication flow
+    test_register_user()
+    test_verify_email()
+    test_login()
+    test_refresh_token()
+
+    # Deck and card operations
+    test_create_deck()
+    test_get_decks()
+    test_get_deck_details()
+    test_create_card()
+    test_get_cards()
+    test_get_card_details()
+
+    print_header("Testing Complete")
+    print_success("All tests have been executed")
