@@ -31,9 +31,111 @@ The application uses JWT (JSON Web Token) for authentication:
 
 ## API Endpoints
 
+### API Overview
+
+```mermaid
+graph TD
+    A[Flashcard API] --> B[Authentication]
+    A --> C[Decks]
+    A --> D[Cards]
+    A --> E[Card Reviews]
+    A --> F[Study Sessions]
+    
+    B --> B1[Register]
+    B --> B2[Login]
+    B --> B3[Verify Email]
+    
+    C --> C1[Create Deck]
+    C --> C2[Get User's Decks]
+    C --> C3[Update Deck]
+    C --> C4[Delete Deck]
+    
+    D --> D1[Create Card]
+    D --> D2[Get Cards in Deck]
+    D --> D3[Update Card]
+    D --> D4[Delete Card]
+    
+    E --> E1[Submit Review]
+    E --> E2[Get Card Reviews]
+    
+    F --> F1[Start Study Session]
+    F --> F2[Get Due Cards]
+    F --> F3[Get Review Stats]
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333
+    style C fill:#bbf,stroke:#333
+    style D fill:#bbf,stroke:#333
+    style E fill:#bbf,stroke:#333
+    style F fill:#bbf,stroke:#333
+```
+
+### Entity Relationships
+
+```mermaid
+erDiagram
+    USER {
+        long id
+        string username
+        string email
+        string password
+        boolean enabled
+    }
+    
+    DECK {
+        long id
+        string name
+        string description
+        date createdAt
+    }
+    
+    CARD {
+        long id
+        string front
+        string back
+        date createdAt
+        date nextReviewAt
+    }
+    
+    CARD_REVIEW {
+        long id
+        int confidence
+        date reviewedAt
+    }
+    
+    STUDY_SESSION {
+        long id
+        date startTime
+        date endTime
+    }
+    
+    USER ||--o{ DECK : creates
+    DECK ||--o{ CARD : contains
+    USER ||--o{ CARD_REVIEW : submits
+    CARD ||--o{ CARD_REVIEW : receives
+    USER ||--o{ STUDY_SESSION : conducts
+    STUDY_SESSION }o--o{ CARD : includes
+```
+
 ### Authentication Endpoints
 
 #### 1. Register a New User
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant AuthController
+    participant UserService
+    participant EmailService
+    participant Database
+    
+    Client->>AuthController: POST /api/auth/signup
+    AuthController->>UserService: Create User
+    UserService->>Database: Save User (Disabled)
+    UserService->>EmailService: Send Verification Email
+    EmailService-->>Client: Email with Verification Link
+    AuthController-->>Client: 200 OK Response
+```
 
 - **URL**: `/api/auth/signup`
 - **Method**: `POST`
@@ -64,29 +166,27 @@ The application uses JWT (JSON Web Token) for authentication:
 
 #### 2. Verify Email
 
-- **URL**: `/api/auth/verify-email`
-- **Method**: `POST`
-- **Auth Required**: No
-- **Description**: Verifies a user's email address with token received by email
-- **Request Body**:
+**Endpoint**: `GET /api/auth/verify?token=abc123`
 
-```json
-{
-  "token": "verification-token-from-email"
-}
-```
+**Authentication**: None
 
-- **Response (200 OK)**:
+**Response**:
 
-```json
-{
-  "message": "Email successfully verified. You can now log in."
-}
-```
+- 200 OK: Verification successful
 
-- **Possible Errors**:
-  - 400: Token is required
-  - 400: Invalid or expired token
+  ```json
+  {
+    "message": "Email verified successfully. You can now log in."
+  }
+  ```
+
+- 400 Bad Request: Invalid token
+
+  ```json
+  {
+    "message": "Error: Invalid or expired verification token!"
+  }
+  ```
 
 #### 3. Resend Verification Email
 
@@ -116,6 +216,27 @@ The application uses JWT (JSON Web Token) for authentication:
   - 500: Failed to resend verification code
 
 #### 4. Login
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant AuthController
+    participant AuthManager
+    participant JwtUtils
+    participant Database
+    
+    Client->>AuthController: POST /api/auth/signin
+    AuthController->>AuthManager: Authenticate User
+    AuthManager->>Database: Verify Credentials
+    Database-->>AuthManager: User Details
+    AuthManager-->>AuthController: Authentication Object
+    AuthController->>JwtUtils: Generate JWT Token
+    JwtUtils-->>AuthController: JWT Token
+    AuthController-->>Client: 200 OK with JWT Token
+    
+    Note over Client,AuthController: Subsequent Requests
+    Client->>AuthController: Request with Authorization header
+```
 
 - **URL**: `/api/auth/login`
 - **Method**: `POST`
@@ -266,6 +387,19 @@ The application uses JWT (JSON Web Token) for authentication:
 
 #### 10. Get All Decks
 
+```mermaid
+flowchart TD
+    A[User] -->|Create| B[Deck]
+    A -->|View| C[List of Decks]
+    A -->|Update| B
+    A -->|Delete| B
+    B -->|Contains| D[Cards]
+    
+    style B fill:#bbf,stroke:#333
+    style C fill:#bbf,stroke:#333
+    style D fill:#bbf,stroke:#333
+```
+
 - **URL**: `/api/decks`
 - **Method**: `GET`
 - **Auth Required**: Yes
@@ -403,6 +537,26 @@ The application uses JWT (JSON Web Token) for authentication:
 
 ### Card Management
 
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant CardService
+    participant SpacedRepetition
+    
+    User->>API: Create Card
+    API->>CardService: Save Card
+    CardService->>API: Card Created
+    API-->>User: Card Details
+    
+    User->>API: Review Card (confidence level)
+    API->>CardService: Record Review
+    CardService->>SpacedRepetition: Calculate Next Review Date
+    SpacedRepetition-->>CardService: Next Review Date
+    CardService->>API: Update Complete
+    API-->>User: Updated Card Review Schedule
+```
+
 #### 15. Get Cards in Deck
 
 - **URL**: `/api/decks/{deckId}/cards`
@@ -470,6 +624,20 @@ The application uses JWT (JSON Web Token) for authentication:
   - 404: Card not found
 
 #### 17. Get Cards Due for Review
+
+```mermaid
+flowchart TD
+    A[Study Session] -->|includes| B[Due Cards]
+    C[User] -->|reviews| B
+    C -->|submits| D[Confidence Rating]
+    D -->|updates| E[Spaced Repetition Algorithm]
+    E -->|calculates| F[Next Review Date]
+    F -->|applied to| B
+    
+    style A fill:#bbf,stroke:#333
+    style C fill:#dfd,stroke:#333
+    style E fill:#f9f,stroke:#333,stroke-width:2px
+```
 
 - **URL**: `/api/decks/{deckId}/review-cards`
 - **Method**: `GET`
@@ -599,6 +767,32 @@ The application uses JWT (JSON Web Token) for authentication:
   - 404: Deck not found or you don't have access to this deck
 
 ### Study Session Management
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant StudySessionService
+    participant CardService
+    
+    User->>API: Start Study Session
+    API->>StudySessionService: Create Session
+    StudySessionService->>CardService: Get Due Cards
+    CardService-->>StudySessionService: Due Cards
+    StudySessionService-->>API: Session with Cards
+    API-->>User: Cards to Study
+    
+    loop For Each Card
+        User->>API: Submit Review
+        API->>StudySessionService: Record Review
+        StudySessionService->>CardService: Update Card Schedule
+    end
+    
+    User->>API: End Session
+    API->>StudySessionService: Complete Session
+    StudySessionService-->>API: Session Statistics
+    API-->>User: Study Session Summary
+```
 
 #### 21. Get All Study Sessions
 
