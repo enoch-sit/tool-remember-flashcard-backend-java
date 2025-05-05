@@ -64,6 +64,7 @@ REFRESH_TOKEN = None
 USER_EMAIL = None
 USER_PASSWORD = None
 USER_ID = None
+USER_USERNAME = None
 TEST_DECK_ID = None
 TEST_CARD_ID = None
 TEST_SESSION_ID = None
@@ -422,19 +423,19 @@ def test_health_check():
 
 def test_register_user():
     """Test user registration"""
-    global USER_EMAIL, USER_PASSWORD, USER_ID
+    global USER_EMAIL, USER_PASSWORD, USER_ID, USER_USERNAME
 
     print_header("Testing User Registration")
 
     # Generate random username and email for testing
     random_suffix = generate_random_string()
-    username = f"testuser_{random_suffix}"
+    USER_USERNAME = f"testuser_{random_suffix}"
     USER_EMAIL = f"testuser_{random_suffix}@example.com"
     USER_PASSWORD = f"Password123!{random_suffix}"
 
-    print_info(f"Registering user: {username} with email: {USER_EMAIL}")
+    print_info(f"Registering user: {USER_USERNAME} with email: {USER_EMAIL}")
 
-    data = {"username": username, "email": USER_EMAIL, "password": USER_PASSWORD}
+    data = {"username": USER_USERNAME, "email": USER_EMAIL, "password": USER_PASSWORD}
 
     response = requests.post(f"{BASE_URL}/api/auth/signup", json=data)
     result = handle_response(response, "User registration request sent")
@@ -462,18 +463,18 @@ def test_register_user():
 
 def test_login():
     """Test user login"""
-    global USER_EMAIL, USER_PASSWORD
+    global USER_EMAIL, USER_PASSWORD, USER_USERNAME
 
     print_header("Testing User Login")
 
-    if not USER_EMAIL or not USER_PASSWORD:
+    if not USER_USERNAME or not USER_PASSWORD:
         if args.auto:
             print_error("No user credentials available for automated login")
             return None
-        USER_EMAIL = input("Enter your email: ").strip()
+        USER_USERNAME = input("Enter your username: ").strip()
         USER_PASSWORD = getpass.getpass("Enter your password: ")
 
-    data = {"email": USER_EMAIL, "password": USER_PASSWORD}
+    data = {"username": USER_USERNAME, "password": USER_PASSWORD}
 
     response = requests.post(f"{BASE_URL}/api/auth/login", json=data)
     result = handle_response(response, "Login request sent")
@@ -583,16 +584,40 @@ def test_create_card():
         "notes": "A test card created by the API test script",
     }
 
-    response = requests.post(
-        f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards", json=data, headers=auth_header
-    )
-    result = handle_response(response, "Create card request sent")
+    # Add retry logic for handling connection errors
+    max_retries = 3
+    retry_delay = 2
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                f"{BASE_URL}/api/decks/{TEST_DECK_ID}/cards",
+                json=data,
+                headers=auth_header,
+                timeout=30,  # Add a timeout to prevent indefinite hanging
+            )
+            result = handle_response(response, "Create card request sent")
 
-    if result:
-        TEST_CARD_ID = result.get("id")
-        print_info(f"Created card with ID: {TEST_CARD_ID}")
+            if result:
+                TEST_CARD_ID = result.get("id")
+                print_info(f"Created card with ID: {TEST_CARD_ID}")
 
-    return result
+            return result
+
+        except (
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ) as e:
+            if attempt < max_retries - 1:
+                print_warning(f"Connection error on attempt {attempt + 1}: {str(e)}")
+                print_info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                print_error(
+                    f"Failed to create card after {max_retries} attempts: {str(e)}"
+                )
+                return None
 
 
 def test_get_cards():
