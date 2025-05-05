@@ -259,9 +259,18 @@ public class AuthController {
             // Get username from refresh token
             String username = jwtUtils.getUserNameFromJwtToken(refreshToken);
 
-            // Get user details
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, ""));
+            // Find the user directly instead of re-authenticating
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Create the UserDetails object
+            UserDetailsImpl userDetails = UserDetailsImpl.build(user);
+
+            // Create authentication token without password validation
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails,
+                    null, userDetails.getAuthorities());
+
+            // Set the authentication in the context
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
             // Generate new access token
@@ -273,6 +282,7 @@ public class AuthController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Token refresh failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Token refresh failed"));
         }

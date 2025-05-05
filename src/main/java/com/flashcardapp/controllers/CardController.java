@@ -30,150 +30,195 @@ import java.util.Map;
 @RequestMapping("/api")
 public class CardController {
 
-    @Autowired
-    private CardRepository cardRepository;
+        @Autowired
+        private CardRepository cardRepository;
 
-    @Autowired
-    private DeckRepository deckRepository;
+        @Autowired
+        private DeckRepository deckRepository;
 
-    @Autowired
-    private UserRepository userRepository;
+        @Autowired
+        private UserRepository userRepository;
 
-    @GetMapping("/decks/{deckId}/cards")
-    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
-    public ResponseEntity<?> getAllCardsByDeck(
-            @PathVariable Long deckId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id,asc") String[] sort) {
+        @GetMapping("/decks/{deckId}/cards")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> getAllCardsByDeck(
+                        @PathVariable Long deckId,
+                        @RequestParam(defaultValue = "0") int page,
+                        @RequestParam(defaultValue = "10") int size,
+                        @RequestParam(defaultValue = "id,asc") String[] sort) {
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
-                .getPrincipal();
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+                User user = userRepository.findById(userDetails.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Deck deck = deckRepository.findByIdAndUser(deckId, user)
-                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+                Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Deck not found or you don't have access to this deck"));
 
-        String sortField = sort[0];
-        String sortDirection = sort.length > 1 ? sort[1] : "asc";
-        Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
-        Sort sortBy = Sort.by(direction, sortField);
-        Pageable pageable = PageRequest.of(page, size, sortBy);
+                String sortField = sort[0];
+                String sortDirection = sort.length > 1 ? sort[1] : "asc";
+                Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ? Sort.Direction.DESC
+                                : Sort.Direction.ASC;
+                Sort sortBy = Sort.by(direction, sortField);
+                Pageable pageable = PageRequest.of(page, size, sortBy);
 
-        Page<Card> cards = cardRepository.findByDeck(deck, pageable);
+                Page<Card> cards = cardRepository.findByDeck(deck, pageable);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("cards", cards.getContent());
-        response.put("currentPage", cards.getNumber());
-        response.put("totalItems", cards.getTotalElements());
-        response.put("totalPages", cards.getTotalPages());
+                Map<String, Object> response = new HashMap<>();
+                response.put("cards", cards.getContent());
+                response.put("currentPage", cards.getNumber());
+                response.put("totalItems", cards.getTotalElements());
+                response.put("totalPages", cards.getTotalPages());
 
-        return ResponseEntity.ok(response);
-    }
+                return ResponseEntity.ok(response);
+        }
 
-    @GetMapping("/decks/{deckId}/cards/{id}")
-    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
-    public ResponseEntity<?> getCardById(@PathVariable Long deckId, @PathVariable Long id) {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
-                .getPrincipal();
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        @GetMapping("/decks/{deckId}/cards/{id}")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> getCardById(@PathVariable Long deckId, @PathVariable Long id) {
+                UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+                User user = userRepository.findById(userDetails.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        deckRepository.findByIdAndUser(deckId, user)
-                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+                deckRepository.findByIdAndUser(deckId, user)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Deck not found or you don't have access to this deck"));
 
-        Card card = cardRepository.findByIdAndDeckId(id, deckId)
-                .orElseThrow(() -> new RuntimeException("Card not found"));
+                Card card = cardRepository.findByIdAndDeckId(id, deckId)
+                                .orElseThrow(() -> new RuntimeException("Card not found"));
 
-        return ResponseEntity.ok(card);
-    }
+                return ResponseEntity.ok(card);
+        }
 
-    @GetMapping("/decks/{deckId}/review-cards")
-    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
-    public ResponseEntity<?> getCardsForReview(
-            @PathVariable Long deckId,
-            @RequestParam(defaultValue = "10") int limit) {
+        @GetMapping("/decks/{deckId}/review-cards")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> getCardsForReview(
+                        @PathVariable Long deckId,
+                        @RequestParam(defaultValue = "10") int limit) {
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
-                .getPrincipal();
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+                User user = userRepository.findById(userDetails.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Deck deck = deckRepository.findByIdAndUser(deckId, user)
-                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+                Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Deck not found or you don't have access to this deck"));
 
-        LocalDateTime now = LocalDateTime.now();
+                LocalDateTime now = LocalDateTime.now();
 
-        Pageable pageable = PageRequest.of(0, limit);
-        List<Card> cards = cardRepository.findCardsForReview(deck, now, pageable);
-        Long totalCards = cardRepository.countCardsForReview(deck, now);
+                Pageable pageable = PageRequest.of(0, limit);
+                List<Card> cards = cardRepository.findCardsForReview(deck, now, pageable);
+                Long totalCards = cardRepository.countCardsForReview(deck, now);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("cards", cards);
-        response.put("totalDue", totalCards);
+                Map<String, Object> response = new HashMap<>();
+                response.put("cards", cards);
+                response.put("totalDue", totalCards);
 
-        return ResponseEntity.ok(response);
-    }
+                return ResponseEntity.ok(response);
+        }
 
-    @PostMapping("/decks/{deckId}/cards")
-    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
-    public ResponseEntity<?> createCard(@PathVariable Long deckId, @Valid @RequestBody Card card) {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
-                .getPrincipal();
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        @PostMapping("/decks/{deckId}/cards")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> createCard(@PathVariable Long deckId, @Valid @RequestBody Card card) {
+                UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+                User user = userRepository.findById(userDetails.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Deck deck = deckRepository.findByIdAndUser(deckId, user)
-                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+                Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Deck not found or you don't have access to this deck"));
 
-        card.setDeck(deck);
-        Card savedCard = cardRepository.save(card);
+                card.setDeck(deck);
+                Card savedCard = cardRepository.save(card);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedCard);
-    }
+                return ResponseEntity.status(HttpStatus.CREATED).body(savedCard);
+        }
 
-    @PutMapping("/decks/{deckId}/cards/{id}")
-    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
-    public ResponseEntity<?> updateCard(@PathVariable Long deckId, @PathVariable Long id,
-            @Valid @RequestBody Card cardDetails) {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
-                .getPrincipal();
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        /**
+         * Alternative card creation endpoint that returns a lightweight response
+         * to avoid chunked encoding issues with some clients
+         */
+        @PostMapping("/decks/{deckId}/cards/simple")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> createCardSimple(@PathVariable Long deckId, @Valid @RequestBody Card card) {
+                try {
+                        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                                        .getAuthentication()
+                                        .getPrincipal();
+                        User user = userRepository.findById(userDetails.getId())
+                                        .orElseThrow(() -> new RuntimeException("User not found"));
 
-        deckRepository.findByIdAndUser(deckId, user)
-                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+                        Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "Deck not found or you don't have access to this deck"));
 
-        Card card = cardRepository.findByIdAndDeckId(id, deckId)
-                .orElseThrow(() -> new RuntimeException("Card not found"));
+                        card.setDeck(deck);
+                        Card savedCard = cardRepository.save(card);
 
-        card.setFront(cardDetails.getFront());
-        card.setBack(cardDetails.getBack());
-        card.setNotes(cardDetails.getNotes());
-        card.setUpdatedAt(LocalDateTime.now());
+                        // Create a simplified response with just the essential fields
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("id", savedCard.getId());
+                        response.put("front", savedCard.getFront());
+                        response.put("back", savedCard.getBack());
+                        response.put("createdAt", savedCard.getCreatedAt());
 
-        Card updatedCard = cardRepository.save(card);
+                        // Return a simple response to avoid chunked encoding issues
+                        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+                } catch (Exception e) {
+                        // Add better error handling
+                        Map<String, String> errorResponse = new HashMap<>();
+                        errorResponse.put("message", "Error creating card: " + e.getMessage());
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
+        }
 
-        return ResponseEntity.ok(updatedCard);
-    }
+        @PutMapping("/decks/{deckId}/cards/{id}")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> updateCard(@PathVariable Long deckId, @PathVariable Long id,
+                        @Valid @RequestBody Card cardDetails) {
+                UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+                User user = userRepository.findById(userDetails.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-    @DeleteMapping("/decks/{deckId}/cards/{id}")
-    @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
-    public ResponseEntity<?> deleteCard(@PathVariable Long deckId, @PathVariable Long id) {
-        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
-                .getPrincipal();
-        User user = userRepository.findById(userDetails.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                deckRepository.findByIdAndUser(deckId, user)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Deck not found or you don't have access to this deck"));
 
-        deckRepository.findByIdAndUser(deckId, user)
-                .orElseThrow(() -> new RuntimeException("Deck not found or you don't have access to this deck"));
+                Card card = cardRepository.findByIdAndDeckId(id, deckId)
+                                .orElseThrow(() -> new RuntimeException("Card not found"));
 
-        Card card = cardRepository.findByIdAndDeckId(id, deckId)
-                .orElseThrow(() -> new RuntimeException("Card not found"));
+                card.setFront(cardDetails.getFront());
+                card.setBack(cardDetails.getBack());
+                card.setNotes(cardDetails.getNotes());
+                card.setUpdatedAt(LocalDateTime.now());
 
-        cardRepository.delete(card);
+                Card updatedCard = cardRepository.save(card);
 
-        return ResponseEntity.ok(new MessageResponse("Card deleted successfully"));
-    }
+                return ResponseEntity.ok(updatedCard);
+        }
+
+        @DeleteMapping("/decks/{deckId}/cards/{id}")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> deleteCard(@PathVariable Long deckId, @PathVariable Long id) {
+                UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+                User user = userRepository.findById(userDetails.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
+                deckRepository.findByIdAndUser(deckId, user)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Deck not found or you don't have access to this deck"));
+
+                Card card = cardRepository.findByIdAndDeckId(id, deckId)
+                                .orElseThrow(() -> new RuntimeException("Card not found"));
+
+                cardRepository.delete(card);
+
+                return ResponseEntity.ok(new MessageResponse("Card deleted successfully"));
+        }
 }

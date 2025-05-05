@@ -497,14 +497,22 @@ def test_refresh_token():
 
     data = {"refreshToken": REFRESH_TOKEN}
 
-    response = requests.post(f"{BASE_URL}/api/auth/refresh", json=data)
-    result = handle_response(response, "Token refresh request sent")
+    # Try with different timeout values to see if it helps with connection issues
+    try:
+        response = requests.post(f"{BASE_URL}/api/auth/refresh", json=data, timeout=30)
+        result = handle_response(response, "Token refresh request sent")
 
-    if result:
-        AUTH_TOKEN = result.get("accessToken")
-        print_info("Access token updated")
+        if result:
+            AUTH_TOKEN = result.get("accessToken")
+            print_info("Access token updated")
 
-    return result
+        return result
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        print_error(f"Connection error during token refresh: {str(e)}")
+        return None
+    except Exception as e:
+        print_error(f"Unexpected error during token refresh: {str(e)}")
+        return None
 
 
 def test_create_deck():
