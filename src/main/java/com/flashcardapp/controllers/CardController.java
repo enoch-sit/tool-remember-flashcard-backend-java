@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -74,6 +75,56 @@ public class CardController {
                 return ResponseEntity.ok(response);
         }
 
+        /**
+         * Get cards in a deck with simplified response to avoid chunked encoding issues
+         */
+        @GetMapping("/decks/{deckId}/cards/simple")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> getAllCardsByDeckSimplified(
+                        @PathVariable Long deckId,
+                        @RequestParam(defaultValue = "0") int page,
+                        @RequestParam(defaultValue = "10") int size) {
+
+                try {
+                        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                                        .getAuthentication()
+                                        .getPrincipal();
+                        User user = userRepository.findById(userDetails.getId())
+                                        .orElseThrow(() -> new RuntimeException("User not found"));
+
+                        Deck deck = deckRepository.findByIdAndUser(deckId, user)
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "Deck not found or you don't have access to this deck"));
+
+                        Pageable pageable = PageRequest.of(page, size);
+                        Page<Card> cards = cardRepository.findByDeck(deck, pageable);
+
+                        // Create a simplified response with just essential card data
+                        List<Map<String, Object>> simplifiedCards = cards.getContent().stream()
+                                        .map(card -> {
+                                                Map<String, Object> simplifiedCard = new HashMap<>();
+                                                simplifiedCard.put("id", card.getId());
+                                                simplifiedCard.put("front", card.getFront());
+                                                simplifiedCard.put("back", card.getBack());
+                                                simplifiedCard.put("createdAt", card.getCreatedAt());
+                                                return simplifiedCard;
+                                        })
+                                        .collect(Collectors.toList());
+
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("cards", simplifiedCards);
+                        response.put("currentPage", cards.getNumber());
+                        response.put("totalItems", cards.getTotalElements());
+                        response.put("totalPages", cards.getTotalPages());
+
+                        return ResponseEntity.ok(response);
+                } catch (Exception e) {
+                        Map<String, String> errorResponse = new HashMap<>();
+                        errorResponse.put("message", "Error retrieving cards: " + e.getMessage());
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
+        }
+
         @GetMapping("/decks/{deckId}/cards/{id}")
         @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
         public ResponseEntity<?> getCardById(@PathVariable Long deckId, @PathVariable Long id) {
@@ -90,6 +141,43 @@ public class CardController {
                                 .orElseThrow(() -> new RuntimeException("Card not found"));
 
                 return ResponseEntity.ok(card);
+        }
+
+        /**
+         * Get card details with simplified response to avoid chunked encoding issues
+         */
+        @GetMapping("/decks/{deckId}/cards/{id}/simple")
+        @PreAuthorize("hasRole('USER') or hasRole('SUPERVISOR') or hasRole('ADMIN')")
+        public ResponseEntity<?> getCardByIdSimplified(@PathVariable Long deckId, @PathVariable Long id) {
+                try {
+                        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext()
+                                        .getAuthentication()
+                                        .getPrincipal();
+                        User user = userRepository.findById(userDetails.getId())
+                                        .orElseThrow(() -> new RuntimeException("User not found"));
+
+                        deckRepository.findByIdAndUser(deckId, user)
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "Deck not found or you don't have access to this deck"));
+
+                        Card card = cardRepository.findByIdAndDeckId(id, deckId)
+                                        .orElseThrow(() -> new RuntimeException("Card not found"));
+
+                        // Create a simplified response with just essential card data
+                        Map<String, Object> simplifiedCard = new HashMap<>();
+                        simplifiedCard.put("id", card.getId());
+                        simplifiedCard.put("front", card.getFront());
+                        simplifiedCard.put("back", card.getBack());
+                        simplifiedCard.put("notes", card.getNotes());
+                        simplifiedCard.put("createdAt", card.getCreatedAt());
+                        simplifiedCard.put("updatedAt", card.getUpdatedAt());
+
+                        return ResponseEntity.ok(simplifiedCard);
+                } catch (Exception e) {
+                        Map<String, String> errorResponse = new HashMap<>();
+                        errorResponse.put("message", "Error retrieving card: " + e.getMessage());
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
         }
 
         @GetMapping("/decks/{deckId}/review-cards")

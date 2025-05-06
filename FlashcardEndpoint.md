@@ -166,9 +166,17 @@ sequenceDiagram
 
 #### 2. Verify Email
 
-**Endpoint**: `GET /api/auth/verify?token=abc123`
+**Endpoint**: `POST /api/auth/verify-email`
 
 **Authentication**: None
+
+**Request Body**:
+
+```json
+{
+  "token": "verification-token-from-email"
+}
+```
 
 **Response**:
 
